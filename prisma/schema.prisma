@@ -1,0 +1,210 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  customer
+  expert
+  admin
+  superadmin
+}
+
+enum UserStatus {
+  active
+  disabled
+  deleted
+}
+
+enum VerificationStatus {
+  pending
+  verified
+  rejected
+  suspended
+}
+
+enum CaseStatus {
+  open
+  waiting_for_expert
+  in_chat
+  answered
+  closed
+  escalated
+}
+
+enum MessageType {
+  text
+  attachment
+  system
+}
+
+enum Priority {
+  normal
+  high
+}
+
+model User {
+  id         String      @id @default(uuid())
+  email      String      @unique @db.Citext
+  password   String
+  role       UserRole    @default(customer)
+  status     UserStatus  @default(active)
+  createdAt  DateTime    @default(now())
+  lastLogin  DateTime?
+  profile    Profile?
+  expert     Expert?
+  cases      Case[]      @relation("CustomerCases")
+  assigned   Case[]      @relation("AssignedExpert")
+  messages   Message[]
+  ratings    Rating[]    @relation("CustomerRatings")
+  expertRatings Rating[] @relation("ExpertRatings")
+  adminLogs  AuditLog[]  @relation("ActorLogs")
+  notifications Notification[]
+}
+
+model Profile {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  name      String?
+  phone     String?
+  locale    String?  @default("de")
+  avatarUrl String?
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model Expert {
+  id                 String              @id @default(uuid())
+  userId             String              @unique
+  bio                String?
+  verificationStatus VerificationStatus  @default(pending)
+  ratingAvg          Float               @default(0)
+  answeredCount      Int                 @default(0)
+  responseTimeAvg    Int                 @default(0)
+  user               User                @relation(fields: [userId], references: [id])
+  skills             ExpertSkill[]
+  documents          VerificationDocument[]
+}
+
+model ExpertSkill {
+  id        String   @id @default(uuid())
+  expertId  String
+  categoryId String
+  proficiencyLevel Int @default(3)
+  expert    Expert   @relation(fields: [expertId], references: [id])
+  category  Category @relation(fields: [categoryId], references: [id])
+}
+
+model Category {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  parentId  String?
+  isActive  Boolean   @default(true)
+  parent    Category? @relation("CategoryParent", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryParent")
+  cases     Case[]
+  skills    ExpertSkill[]
+}
+
+model Case {
+  id               String     @id @default(uuid())
+  customerId       String
+  categoryId       String
+  title            String
+  description      String
+  status           CaseStatus @default(waiting_for_expert)
+  priority         Priority   @default(normal)
+  assignedExpertId String?
+  createdAt        DateTime   @default(now())
+  closedAt         DateTime?
+  customer         User       @relation("CustomerCases", fields: [customerId], references: [id])
+  assignedExpert   User?      @relation("AssignedExpert", fields: [assignedExpertId], references: [id])
+  category         Category   @relation(fields: [categoryId], references: [id])
+  messages         Message[]
+  attachments      Attachment[]
+  ratings          Rating[]
+  paymentIntent    PaymentIntent?
+}
+
+model Message {
+  id           String      @id @default(uuid())
+  caseId       String
+  senderUserId String
+  type         MessageType @default(text)
+  content      String
+  createdAt    DateTime    @default(now())
+  case         Case        @relation(fields: [caseId], references: [id])
+  sender       User        @relation(fields: [senderUserId], references: [id])
+  attachments  Attachment[]
+}
+
+model Attachment {
+  id         String   @id @default(uuid())
+  ownerUserId String
+  caseId     String?
+  messageId  String?
+  fileUrl    String
+  mimeType   String
+  size       Int
+  createdAt  DateTime @default(now())
+  case       Case?    @relation(fields: [caseId], references: [id])
+  message    Message? @relation(fields: [messageId], references: [id])
+}
+
+model Rating {
+  id         String   @id @default(uuid())
+  caseId     String
+  customerId String
+  expertId   String
+  stars      Int
+  comment    String?
+  createdAt  DateTime @default(now())
+  case       Case     @relation(fields: [caseId], references: [id])
+  customer   User     @relation("CustomerRatings", fields: [customerId], references: [id])
+  expert     User     @relation("ExpertRatings", fields: [expertId], references: [id])
+}
+
+model VerificationDocument {
+  id          String   @id @default(uuid())
+  expertId    String
+  fileUrl     String
+  status      VerificationStatus @default(pending)
+  reviewedByAdminId String?
+  reviewedAt  DateTime?
+  expert      Expert   @relation(fields: [expertId], references: [id])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String
+  payloadJson Json
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorUserId String
+  action     String
+  targetType String
+  targetId   String
+  metaJson   Json
+  createdAt  DateTime @default(now())
+  actor      User     @relation("ActorLogs", fields: [actorUserId], references: [id])
+}
+
+model PaymentIntent {
+  id         String   @id @default(uuid())
+  caseId     String   @unique
+  customerId String
+  provider   String
+  status     String
+  amount     Int
+  currency   String
+  case       Case     @relation(fields: [caseId], references: [id])
+}
