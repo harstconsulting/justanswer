@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "./db";
 import { sendMail } from "./email";
 
@@ -31,7 +32,7 @@ export async function createNotification(input: NotificationInput) {
     data: {
       userId: input.userId,
       type: input.type,
-      payloadJson: input.payload
+      payloadJson: input.payload as Prisma.InputJsonValue
     }
   });
 
