@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
 
   const documents = await prisma.verificationDocument.findMany({
     where: { expertId: expert.id },
-    orderBy: { createdAt: "desc" }
+    orderBy: { reviewedAt: "desc" }
   });
 
   return NextResponse.json({ documents, verificationStatus: expert.verificationStatus });
