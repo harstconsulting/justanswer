@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { CaseStatus } from "@prisma/client";
 import { prisma } from "../../../../lib/db";
 import { getSessionFromRequest } from "../../../../lib/auth";
 import { isAdmin } from "../../../../lib/rbac";
@@ -9,13 +10,17 @@ export async function GET(req: NextRequest) {
   if (!isAdmin(session)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { searchParams } = new URL(req.url);
-  const status = searchParams.get("status");
+  const statusParam = searchParams.get("status");
   const categoryId = searchParams.get("categoryId");
   const assignedExpertId = searchParams.get("assignedExpertId");
 
+  const status = statusParam && (Object.values(CaseStatus) as string[]).includes(statusParam)
+    ? (statusParam as CaseStatus)
+    : undefined;
+
   const cases = await prisma.case.findMany({
     where: {
-      status: status ?? undefined,
+      status,
       categoryId: categoryId ?? undefined,
       assignedExpertId: assignedExpertId ?? undefined
     },
